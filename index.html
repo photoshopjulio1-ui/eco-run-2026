@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eco Run 2026 - Leitor de Check-in e Kits</title>
+    <!-- Biblioteca leitor de QR Code HTML5 -->
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <style>
+        :root {
+            --primary: #2e7d32;
+            --bg: #1e1e1e;
+            --card: #2c2c2c;
+            --text: #ffffff;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, sans-serif; }
+        body { background-color: var(--bg); color: var(--text); display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 20px; }
+        
+        .header { text-align: center; margin-bottom: 20px; }
+        .header h1 { color: #81c784; font-size: 1.5rem; text-transform: uppercase; }
+
+        #reader { width: 100%; max-width: 500px; border-radius: 10px; overflow: hidden; border: 4px solid var(--primary); background: #000; margin-bottom: 20px; }
+
+        .loading { display: none; color: #ffeb3b; font-size: 1.2rem; font-weight: bold; margin: 20px 0; }
+
+        .result-card { display: none; background: var(--card); width: 100%; max-width: 500px; border-radius: 12px; padding: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); text-align: left; }
+        .result-card h2 { color: #81c784; margin-bottom: 5px; font-size: 1.4rem; border-bottom: 1px solid #555; padding-bottom: 10px;}
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px; }
+        .info-item { display: flex; flex-direction: column; }
+        .info-label { font-size: 0.8rem; color: #aaa; text-transform: uppercase; }
+        .info-value { font-size: 1.1rem; font-weight: bold; color: #fff; }
+        .info-full { grid-column: span 2; }
+        
+        .status-badge { margin-top: 20px; padding: 10px; border-radius: 6px; text-align: center; font-weight: bold; font-size: 1.1rem; }
+        .status-ok { background: #d4edda; color: #155724; }
+        .status-pendente { background: #fff3cd; color: #856404; }
+
+        .btn-confirmar { display: block; width: 100%; padding: 15px; margin-top: 20px; background-color: var(--primary); color: white; border: none; border-radius: 8px; font-size: 1.2rem; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .btn-confirmar:active { transform: scale(0.98); }
+        .btn-confirmar:disabled { background: #555; cursor: not-allowed; color: #999; }
+
+        .btn-voltar { display: block; width: 100%; padding: 12px; margin-top: 10px; background-color: #555; color: white; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>Eco Run 2026</h1>
+        <p>Validação & Entrega de Kits</p>
+    </div>
+
+    <!-- Leitor da Câmera -->
+    <div id="reader"></div>
+    <div id="loading" class="loading">Buscando Inscrição...</div>
+
+    <!-- Cartão de Resultado da Leitura -->
+    <div id="result-card" class="result-card">
+        <h2 id="rNome">Nome do Atleta</h2>
+        
+        <div class="info-grid">
+            <div class="info-item">
+                <span class="info-label">Tamanho Camisa</span>
+                <span class="info-value" id="rCamisa">-</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Categoria</span>
+                <span class="info-value" id="rCategoria">-</span>
+            </div>
+            <div class="info-item info-full">
+                <span class="info-label">Equipe</span>
+                <span class="info-value" id="rEquipe">-</span>
+            </div>
+        </div>
+
+        <div id="statusKit" class="status-badge"></div>
+
+        <button id="btnConfirmar" class="btn-confirmar">CONFIRMAR ENTREGA DO KIT</button>
+        <button id="btnVoltar" class="btn-voltar" onclick="reiniciarScanner()">Voltar para a Câmera</button>
+    </div>
+
+    <script>
+        // ⚠️ SUBSTITUA AQUI COM A NOVA URL DO SEU WEB APP IGUAL A DA OUTRA PÁGINA
+        const SCRIPT_URL = 'COLE_AQUI_A_URL_DO_SEU_WEB_APP';
+        
+        const html5QrCode = new Html5Qrcode("reader");
+        let linhaAtualSelecionada = null;
+
+        function iniciarScanner() {
+            document.getElementById("result-card").style.display = "none";
+            document.getElementById("reader").style.display = "block";
+            
+            html5QrCode.start(
+                { facingMode: "environment" }, // Usa a câmera traseira do celular
+                { fps: 10, qrbox: { width: 250, height: 250 } },
+                (decodedText, decodedResult) => {
+                    // Verifica se o QR Code lido é do padrão do evento
+                    if(decodedText.startsWith("ECO26ID-")) {
+                        const rowID = decodedText.split("-")[1];
+                        html5QrCode.stop().then(() => {
+                            buscarInscricao(rowID);
+                        }).catch(err => console.error(err));
+                    } else {
+                        alert("QR Code inválido para este evento!");
+                    }
+                },
+                (errorMessage) => { /* Ignora erros de frame vazio */ }
+            ).catch((err) => {
+                alert("Erro ao acessar a câmera. Dê permissão.");
+            });
+        }
+
+        function buscarInscricao(rowID) {
+            document.getElementById("reader").style.display = "none";
+            document.getElementById("loading").style.display = "block";
+
+            // Envia parametro rowIndex na URL para o GET trazer só aquele registro
+            fetch(SCRIPT_URL + "?rowIndex=" + rowID)
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById("loading").style.display = "none";
+                
+                if(data.length > 0) {
+                    exibirDados(data[0]);
+                } else {
+                    alert("Inscrição não encontrada ou excluída!");
+                    reiniciarScanner();
+                }
+            })
+            .catch(err => {
+                alert("Erro na conexão!");
+                reiniciarScanner();
+            });
+        }
+
+        function exibirDados(atleta) {
+            linhaAtualSelecionada = atleta.rowIndex;
+
+            document.getElementById("rNome").innerText = atleta.nome;
+            document.getElementById("rCamisa").innerText = atleta.tamCamisa;
+            document.getElementById("rCategoria").innerText = atleta.categoria;
+            document.getElementById("rEquipe").innerText = atleta.equipe || "S/ Equipe";
+
+            const statusDiv = document.getElementById("statusKit");
+            const btn = document.getElementById("btnConfirmar");
+
+            if(atleta.kitEntregue === "SIM") {
+                statusDiv.className = "status-badge status-ok";
+                statusDiv.innerText = "KIT JÁ FOI ENTREGUE";
+                btn.disabled = true;
+                btn.innerText = "Entrega Bloqueada";
+            } else {
+                statusDiv.className = "status-badge status-pendente";
+                statusDiv.innerText = "KIT PENDENTE DE ENTREGA";
+                btn.disabled = false;
+                btn.innerText = "CONFIRMAR ENTREGA DO KIT";
+            }
+
+            document.getElementById("result-card").style.display = "block";
+        }
+
+        document.getElementById("btnConfirmar").addEventListener("click", function() {
+            if(!linhaAtualSelecionada) return;
+
+            this.disabled = true;
+            this.innerText = "Salvando...";
+
+            const payload = {
+                acao: "marcarKit",
+                rowIndex: linhaAtualSelecionada,
+                status: "SIM"
+            };
+
+            fetch(SCRIPT_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify(payload)
+            })
+            .then(r => r.json())
+            .then(data => {
+                if(data.status === "sucesso") {
+                    document.getElementById("statusKit").className = "status-badge status-ok";
+                    document.getElementById("statusKit").innerText = "ENTREGA CONFIRMADA COM SUCESSO!";
+                    this.innerText = "Kit Entregue";
+                    
+                    // Retorna sozinho para câmera após 3 segundos
+                    setTimeout(() => reiniciarScanner(), 3000);
+                } else {
+                    alert("Erro ao salvar: " + data.mensagem);
+                    this.disabled = false;
+                    this.innerText = "Tentar Novamente";
+                }
+            });
+        });
+
+        function reiniciarScanner() {
+            linhaAtualSelecionada = null;
+            document.getElementById("result-card").style.display = "none";
+            document.getElementById("loading").style.display = "none";
+            iniciarScanner();
+        }
+
+        // Inicia assim que a página carregar
+        window.onload = iniciarScanner;
+    </script>
+</body>
+</html>
