@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Eco Run 2026 - Leitor de Check-in e Kits</title>
-    <!-- Biblioteca leitor de QR Code HTML5 -->
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <style>
         :root {
@@ -38,62 +37,111 @@
         .btn-confirmar { display: block; width: 100%; padding: 15px; margin-top: 20px; background-color: var(--primary); color: white; border: none; border-radius: 8px; font-size: 1.2rem; font-weight: bold; cursor: pointer; transition: 0.2s; }
         .btn-confirmar:active { transform: scale(0.98); }
         .btn-confirmar:disabled { background: #555; cursor: not-allowed; color: #999; }
-
         .btn-voltar { display: block; width: 100%; padding: 12px; margin-top: 10px; background-color: #555; color: white; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; }
+
+        /* Estilos do Login */
+        #loginOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        .login-box { background: var(--card); padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); text-align: center; max-width: 400px; width: 90%; }
+        .login-box h2 { color: #81c784; margin-bottom: 20px; }
+        .login-box input { width: 100%; padding: 12px; margin-bottom: 15px; border: none; border-radius: 5px; font-size: 1rem; }
+        .btn-login { width: 100%; padding: 12px; background: var(--primary); color: white; border: none; border-radius: 5px; font-size: 1.1rem; cursor: pointer; font-weight: bold; }
+        .btn-login:disabled { background: #555; }
+        #loginMsg { margin-top: 15px; color: #ff5252; display: none; font-weight: bold; }
     </style>
 </head>
 <body>
+
+    <!-- Overlay de Segurança -->
+    <div id="loginOverlay">
+        <div class="login-box">
+            <h2>Acesso Restrito</h2>
+            <input type="password" id="inputSenha" placeholder="Senha do Administrador">
+            <button id="btnLogin" class="btn-login" onclick="fazerLogin()">Acessar Leitor</button>
+            <div id="loginMsg"></div>
+        </div>
+    </div>
 
     <div class="header">
         <h1>Eco Run 2026</h1>
         <p>Validação & Entrega de Kits</p>
     </div>
 
-    <!-- Leitor da Câmera -->
     <div id="reader"></div>
     <div id="loading" class="loading">Buscando Inscrição...</div>
 
-    <!-- Cartão de Resultado da Leitura -->
     <div id="result-card" class="result-card">
         <h2 id="rNome">Nome do Atleta</h2>
-        
         <div class="info-grid">
-            <div class="info-item">
-                <span class="info-label">Tamanho Camisa</span>
-                <span class="info-value" id="rCamisa">-</span>
-            </div>
-            <div class="info-item">
-                <span class="info-label">Categoria</span>
-                <span class="info-value" id="rCategoria">-</span>
-            </div>
-            <div class="info-item info-full">
-                <span class="info-label">Equipe</span>
-                <span class="info-value" id="rEquipe">-</span>
-            </div>
+            <div class="info-item"><span class="info-label">Tamanho Camisa</span><span class="info-value" id="rCamisa">-</span></div>
+            <div class="info-item"><span class="info-label">Categoria</span><span class="info-value" id="rCategoria">-</span></div>
+            <div class="info-item info-full"><span class="info-label">Equipe</span><span class="info-value" id="rEquipe">-</span></div>
         </div>
-
         <div id="statusKit" class="status-badge"></div>
-
         <button id="btnConfirmar" class="btn-confirmar">CONFIRMAR ENTREGA DO KIT</button>
         <button id="btnVoltar" class="btn-voltar" onclick="reiniciarScanner()">Voltar para a Câmera</button>
     </div>
 
     <script>
-        // ⚠️ SUBSTITUA AQUI COM A NOVA URL DO SEU WEB APP IGUAL A DA OUTRA PÁGINA
-        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwYlkA0PVnJZJUhOnSPf15u5uS7ax3HR1B5xaXhzk28DVbz3wMA-1qK8h_yN_9qyNDLaQ/exec';
+        // ⚠️ SUBSTITUA COM A URL DO SEU NOVO DEPLOY
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwYlkA0PVnJZJUhOnSPf15u5uS7ax3HR1B5xaXhzk28DVbz3wMA-1qK8h_yN_9qyNDLaQ/exec'; 
         
         const html5QrCode = new Html5Qrcode("reader");
         let linhaAtualSelecionada = null;
+        let senhaAdmin = sessionStorage.getItem('ecoRunSenha');
+
+        function verificarAcesso() {
+            if (!senhaAdmin) {
+                document.getElementById('loginOverlay').style.display = 'flex';
+            } else {
+                document.getElementById('loginOverlay').style.display = 'none';
+                iniciarScanner();
+            }
+        }
+
+        function fazerLogin() {
+            const input = document.getElementById('inputSenha').value;
+            const btn = document.getElementById('btnLogin');
+            const msg = document.getElementById('loginMsg');
+            
+            btn.innerText = 'Validando...';
+            btn.disabled = true;
+            msg.style.display = 'none';
+
+            fetch(SCRIPT_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({ acao: 'login', senha: input })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'sucesso') {
+                    senhaAdmin = input;
+                    sessionStorage.setItem('ecoRunSenha', senhaAdmin);
+                    document.getElementById('loginOverlay').style.display = 'none';
+                    iniciarScanner();
+                } else {
+                    msg.innerText = data.mensagem;
+                    msg.style.display = 'block';
+                }
+            })
+            .catch(err => {
+                msg.innerText = 'Erro ao conectar. Verifique a URL do Script.';
+                msg.style.display = 'block';
+            })
+            .finally(() => {
+                btn.innerText = 'Acessar Leitor';
+                btn.disabled = false;
+            });
+        }
 
         function iniciarScanner() {
             document.getElementById("result-card").style.display = "none";
             document.getElementById("reader").style.display = "block";
             
             html5QrCode.start(
-                { facingMode: "environment" }, // Usa a câmera traseira do celular
+                { facingMode: "environment" },
                 { fps: 10, qrbox: { width: 250, height: 250 } },
                 (decodedText, decodedResult) => {
-                    // Verifica se o QR Code lido é do padrão do evento
                     if(decodedText.startsWith("ECO26ID-")) {
                         const rowID = decodedText.split("-")[1];
                         html5QrCode.stop().then(() => {
@@ -103,7 +151,7 @@
                         alert("QR Code inválido para este evento!");
                     }
                 },
-                (errorMessage) => { /* Ignora erros de frame vazio */ }
+                (errorMessage) => { }
             ).catch((err) => {
                 alert("Erro ao acessar a câmera. Dê permissão.");
             });
@@ -113,11 +161,15 @@
             document.getElementById("reader").style.display = "none";
             document.getElementById("loading").style.display = "block";
 
-            // Envia parametro rowIndex na URL para o GET trazer só aquele registro
-            fetch(SCRIPT_URL + "?rowIndex=" + rowID)
+            fetch(SCRIPT_URL + "?rowIndex=" + rowID + "&senha=" + encodeURIComponent(senhaAdmin))
             .then(res => res.json())
             .then(data => {
                 document.getElementById("loading").style.display = "none";
+                if(data.status === "erro") {
+                    alert(data.mensagem);
+                    if(data.mensagem.includes("Acesso negado")) location.reload();
+                    return reiniciarScanner();
+                }
                 
                 if(data.length > 0) {
                     exibirDados(data[0]);
@@ -134,7 +186,6 @@
 
         function exibirDados(atleta) {
             linhaAtualSelecionada = atleta.rowIndex;
-
             document.getElementById("rNome").innerText = atleta.nome;
             document.getElementById("rCamisa").innerText = atleta.tamCamisa;
             document.getElementById("rCategoria").innerText = atleta.categoria;
@@ -154,7 +205,6 @@
                 btn.disabled = false;
                 btn.innerText = "CONFIRMAR ENTREGA DO KIT";
             }
-
             document.getElementById("result-card").style.display = "block";
         }
 
@@ -167,7 +217,8 @@
             const payload = {
                 acao: "marcarKit",
                 rowIndex: linhaAtualSelecionada,
-                status: "SIM"
+                status: "SIM",
+                senha: senhaAdmin
             };
 
             fetch(SCRIPT_URL, {
@@ -181,8 +232,6 @@
                     document.getElementById("statusKit").className = "status-badge status-ok";
                     document.getElementById("statusKit").innerText = "ENTREGA CONFIRMADA COM SUCESSO!";
                     this.innerText = "Kit Entregue";
-                    
-                    // Retorna sozinho para câmera após 3 segundos
                     setTimeout(() => reiniciarScanner(), 3000);
                 } else {
                     alert("Erro ao salvar: " + data.mensagem);
@@ -199,8 +248,7 @@
             iniciarScanner();
         }
 
-        // Inicia assim que a página carregar
-        window.onload = iniciarScanner;
+        window.onload = verificarAcesso;
     </script>
 </body>
 </html>
