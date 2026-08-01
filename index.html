@@ -6,12 +6,7 @@
     <title>Eco Run 2026 - Leitor de Check-in e Kits</title>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <style>
-        :root {
-            --primary: #2e7d32;
-            --bg: #1e1e1e;
-            --card: #2c2c2c;
-            --text: #ffffff;
-        }
+        :root { --primary: #2e7d32; --bg: #1e1e1e; --card: #2c2c2c; --text: #ffffff; }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, sans-serif; }
         body { background-color: var(--bg); color: var(--text); display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 20px; }
         
@@ -19,11 +14,14 @@
         .header h1 { color: #81c784; font-size: 1.5rem; text-transform: uppercase; }
 
         #reader { width: 100%; max-width: 500px; border-radius: 10px; overflow: hidden; border: 4px solid var(--primary); background: #000; margin-bottom: 20px; }
-
         .loading { display: none; color: #ffeb3b; font-size: 1.2rem; font-weight: bold; margin: 20px 0; }
 
         .result-card { display: none; background: var(--card); width: 100%; max-width: 500px; border-radius: 12px; padding: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); text-align: left; }
-        .result-card h2 { color: #81c784; margin-bottom: 5px; font-size: 1.4rem; border-bottom: 1px solid #555; padding-bottom: 10px;}
+        .result-card h2 { color: #81c784; margin-bottom: 5px; font-size: 1.4rem; border-bottom: 1px solid #555; padding-bottom: 5px;}
+        
+        /* Nova Área para o Número do Atleta */
+        .numero-atleta { font-size: 1.2rem; color: #ff9800; font-weight: bold; margin-bottom: 15px; border-bottom: 1px solid #555; padding-bottom: 10px;}
+        
         .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px; }
         .info-item { display: flex; flex-direction: column; }
         .info-label { font-size: 0.8rem; color: #aaa; text-transform: uppercase; }
@@ -39,7 +37,6 @@
         .btn-confirmar:disabled { background: #555; cursor: not-allowed; color: #999; }
         .btn-voltar { display: block; width: 100%; padding: 12px; margin-top: 10px; background-color: #555; color: white; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; }
 
-        /* Estilos do Login */
         #loginOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
         .login-box { background: var(--card); padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); text-align: center; max-width: 400px; width: 90%; }
         .login-box h2 { color: #81c784; margin-bottom: 20px; }
@@ -51,7 +48,6 @@
 </head>
 <body>
 
-    <!-- Overlay de Segurança -->
     <div id="loginOverlay">
         <div class="login-box">
             <h2>Acesso Restrito</h2>
@@ -71,6 +67,7 @@
 
     <div id="result-card" class="result-card">
         <h2 id="rNome">Nome do Atleta</h2>
+        <div class="numero-atleta">Número: <span id="rNumero" style="color: #fff;">-</span></div>
         <div class="info-grid">
             <div class="info-item"><span class="info-label">Tamanho Camisa</span><span class="info-value" id="rCamisa">-</span></div>
             <div class="info-item"><span class="info-label">Categoria</span><span class="info-value" id="rCategoria">-</span></div>
@@ -86,7 +83,7 @@
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwYlkA0PVnJZJUhOnSPf15u5uS7ax3HR1B5xaXhzk28DVbz3wMA-1qK8h_yN_9qyNDLaQ/exec'; 
         
         const html5QrCode = new Html5Qrcode("reader");
-        let linhaAtualSelecionada = null;
+        let linhaAtualSelecionada = null; // Guardamos o rowIndex retornado pelo backend para atualizar o kit
         let senhaAdmin = sessionStorage.getItem('ecoRunSenha');
 
         function verificarAcesso() {
@@ -143,9 +140,9 @@
                 { fps: 10, qrbox: { width: 250, height: 250 } },
                 (decodedText, decodedResult) => {
                     if(decodedText.startsWith("ECO26ID-")) {
-                        const rowID = decodedText.split("-")[1];
+                        const cpfID = decodedText.split("-")[1]; // Extrai o CPF do QR Code
                         html5QrCode.stop().then(() => {
-                            buscarInscricao(rowID);
+                            buscarInscricao(cpfID);
                         }).catch(err => console.error(err));
                     } else {
                         alert("QR Code inválido para este evento!");
@@ -157,11 +154,12 @@
             });
         }
 
-        function buscarInscricao(rowID) {
+        function buscarInscricao(cpfID) {
             document.getElementById("reader").style.display = "none";
             document.getElementById("loading").style.display = "block";
 
-            fetch(SCRIPT_URL + "?rowIndex=" + rowID + "&senha=" + encodeURIComponent(senhaAdmin))
+            // Envia a busca com o parâmetro cpf
+            fetch(SCRIPT_URL + "?cpf=" + cpfID + "&senha=" + encodeURIComponent(senhaAdmin))
             .then(res => res.json())
             .then(data => {
                 document.getElementById("loading").style.display = "none";
@@ -174,7 +172,7 @@
                 if(data.length > 0) {
                     exibirDados(data[0]);
                 } else {
-                    alert("Inscrição não encontrada ou excluída!");
+                    alert("Inscrição não encontrada (CPF: " + cpfID + ")!");
                     reiniciarScanner();
                 }
             })
@@ -185,8 +183,11 @@
         }
 
         function exibirDados(atleta) {
-            linhaAtualSelecionada = atleta.rowIndex;
+            // O backend retorna a linha onde o atleta está HOJE, garantindo precisão ao atualizar o Kit
+            linhaAtualSelecionada = atleta.rowIndex; 
+            
             document.getElementById("rNome").innerText = atleta.nome;
+            document.getElementById("rNumero").innerText = atleta.numero ? atleta.numero : "Não atribuído";
             document.getElementById("rCamisa").innerText = atleta.tamCamisa;
             document.getElementById("rCategoria").innerText = atleta.categoria;
             document.getElementById("rEquipe").innerText = atleta.equipe || "S/ Equipe";
