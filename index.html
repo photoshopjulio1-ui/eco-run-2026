@@ -139,7 +139,7 @@
                 { facingMode: "environment" },
                 { fps: 10, qrbox: { width: 250, height: 250 } },
                 (decodedText, decodedResult) => {
-                    if(decodedText.startsWith("ECO26ID-")) {
+                    if(decodedText.startsWith("CorridaLuz2026ID-")) {
                         const cpfID = decodedText.split("-")[1]; // Extrai o CPF do QR Code
                         html5QrCode.stop().then(() => {
                             buscarInscricao(cpfID);
