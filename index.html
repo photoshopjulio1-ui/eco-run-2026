@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Eco Run 2026 - Leitor de Check-in e Kits</title>
+    <title>Corrida Para a Luz 2026 - Leitor de Check-in e Kits</title>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <style>
         :root { --primary: #2e7d32; --bg: #1e1e1e; --card: #2c2c2c; --text: #ffffff; }
@@ -58,7 +58,7 @@
     </div>
 
     <div class="header">
-        <h1>Eco Run 2026</h1>
+        <h1>Corrida Para a Luz 2026</h1>
         <p>Validação & Entrega de Kits</p>
     </div>
 
@@ -84,7 +84,7 @@
         
         const html5QrCode = new Html5Qrcode("reader");
         let linhaAtualSelecionada = null; // Guardamos o rowIndex retornado pelo backend para atualizar o kit
-        let senhaAdmin = sessionStorage.getItem('ecoRunSenha');
+        let senhaAdmin = sessionStorage.getItem('CorridaLuzSenha');
 
         function verificarAcesso() {
             if (!senhaAdmin) {
@@ -113,7 +113,7 @@
             .then(data => {
                 if (data.status === 'sucesso') {
                     senhaAdmin = input;
-                    sessionStorage.setItem('ecoRunSenha', senhaAdmin);
+                    sessionStorage.setItem('CorridaLuzSenha', senhaAdmin);
                     document.getElementById('loginOverlay').style.display = 'none';
                     iniciarScanner();
                 } else {
